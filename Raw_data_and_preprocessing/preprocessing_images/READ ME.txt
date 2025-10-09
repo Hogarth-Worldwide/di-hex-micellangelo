@@ -1,0 +1,85 @@
+Main_Koen.m is the main file which runs several scripts of your choice. 
+
+Start initializing the basic properties. This includes the:
+-resolution
+-featureSize (which is the size of 1 feature)
+-angle. (this is the angle in which the topography is based from a horizontal line)
+-sizeImage (which is the dimensions for the CP images).
+
+
+The script needs a existing "Input" and a "Output" folder.
+size.
+
+
+
+
+So the scripts that Main_Koen.m runs are located at the AdditionalScripts.
+
+=============================================================
+
+
+First two modules of sander’s script are ran before cellprofiler, the rest after
+So we first run the first two parts
+-	Selecting tiles and crpping them for cellprofiler
+Then the cellprofiler script
+
+Cellprifler:
+-	Correct for global differences in intensity with illumination correction
+-	Correct for dapi artifacts (correctilluminationapply)
+o	Cannot completely remove all artifacts, so it might give some segmentation problems – we filter the problematic cases out later in the matlab script
+-	Nuclei segmentation (identifyprimaryobjects) 
+o	We predetermine how big the nuclei are going to be, measure the length
+o	Segment them based on these threshold
+o	Here we can see some of the remaining artifacts
+-	Actin segmentation
+o	Important to have a good dapi segmentation, otherwise cellprofiler does not know what to do
+	We get more artifacts resulting from the remaining dapi artifacts
+o	Errors in actin segmentation are almost always the result from errors in the dapi segmentation
+o	Check where the actin region is bigger than the nuclei region later in the matlab script
+o	Discard cells touching the border
+-	0verlay outlines: for visualization
+-	Filter actin that are toching (filter neighbours)
+o	Visualization of the non-touching ones
+-	Save images
+-	Measure object intensities and sizes/shapes for actin without neighbours
+the output folder stores all the cells that are non-touching per tile
+
+now back to matlab:
+
+outlier removal:
+-	Difference between area of whole cell and nuclei
+o	If this is too small, we discard it
+o	Rather remove a few too many then too less
+o	Dx area = area of whole cell – area of nuclei
+o	Could be improved by adding more variables (if there is only dapi but no actin, we can remove it)
+o	Selecting the thresholds: draw a boxplot and use the lower whisker as threshold
+
+Create a bigspace:
+-	Fixedimagecreator.m
+-	Manually look for a spot in a tile where there is a qualitatively good bigspace
+-	Cannot ‘artificially’ make a better image because we need to use the phasecorrelation – align perfect region on imperfect region
+-	quite a lot of cells are still bigger than the bigspace 
+
+phasecorrelation – overlaying images on a fixed bigspace
+-	can take a while to run
+-	first rotate all images to map everything to one square
+-	do we need all center of masses to be in the same spot (same feature)? Or can we have them spread over the image?
+-	The 28micrometer distance is also idealized and does not hold in practice (more like 27.5)
+
+Quality check:
+-	Filter out misaligned phase correlations
+o	Peak correlation of the phase correlation and SSIM value (latter: 1 if image is exactly the same)
+o	80% as threshold (elbow point)
+Plot nuclei location on features
+-	Everything projected onto one feature – ( do we also need this)
+
+
+________________________________________________________________________________________
+
+Comments from NK:
+
+- take your image of interest place in the RAw data folder
+-start "Main_Koen.m"
+-select "1" under       run_RotateRawImages = 0; run_SelectTilesForCP = 0; run_CropCPImages = 0; and press run
+-go to Cell Profiler and start CP_ImageSegmentation_NoNeighbours_Koen.cpproj this will segments Nuclei, Cells and filter non touching objects. SELECT "Cell Profiler output coded" FOLDER IN Cell Profiler
+-go back to "Main_Koen.m" select "1" under run_outlierRemoval = 0; run_FixedImagesCropper = 0; run_PhaseCorrelationAllignment = 1; run_QualityCheck = 1; run_NucleiLocationOnFeatures = 0; run_meshedLocations = 0; run_ContinuousPathGif= 0; run_gifSelectedNuclei = 0; run_reconstruction = 1; run_heatmap = 0; run_PCA= 1;

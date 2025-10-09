@@ -1,0 +1,169 @@
+
+fixed = imread(fixedImageFilename);
+fixednorm=uint16(65535*mat2gray(fixed));
+
+TimprovedByRank = open('TimprovedByRank.mat').TimprovedByRank;
+nucleiNRbyRank = open('nucleiNRbyRank.mat').nucleiNRbyRank;
+NucleiTable =readtable(excelFilenameNucleiRemoved);
+tilenumbers = NucleiTable.Metadata_TileNumber;
+
+%filter out nucleiNr manually;
+remove = ismember(nucleiNRbyRank,excludedNucleiNR);
+
+TimprovedByRank_excluded = TimprovedByRank;
+TimprovedByRank_excluded(remove,:) = [];
+
+nucleiNRbyRank_excluded = nucleiNRbyRank;
+nucleiNRbyRank_excluded(remove,:) = [];
+
+nucleiLocations = round(TimprovedByRank_excluded + (nFeaturesMovingImage * sizeFeatureInPixels/2));
+NucleiLocationOneFeature= round(mod(nucleiLocations,sizeFeatureInPixels));
+NucleiLocationOneFeature(NucleiLocationOneFeature ==0) = round(sizeFeatureInPixels);
+
+
+edges = round (1: meshStepSize :sizeFeatureInPixels+1);
+xbin = discretize(NucleiLocationOneFeature(:,1),edges);
+ybin = discretize(NucleiLocationOneFeature(:,2),edges);
+
+sizeMesh = round(sizeFeatureInPixels/meshStepSize);
+idx = sub2ind([sizeMesh, sizeMesh], ybin, xbin);
+
+%find all nuclei in 30
+meshInterest = [11:10:31];
+averageDapiImage = uint16(zeros(length(fixednorm)-50,length(fixednorm)-50,length(meshInterest)));
+for i = 1:numel(meshInterest)
+
+    nucleiInsideMesh = nucleiNRbyRank_excluded(find(idx==meshInterest(i))');
+    nucleiLocInsideMesh = NucleiLocationOneFeature(find(idx==meshInterest(i))',:);
+    stackDapiImage = uint16(zeros(101,101));
+
+
+    figure('Position', get(0, 'Screensize'))
+
+    T = tiledlayout(1,2);
+    t = tiledlayout(T,'flow','TileSpacing','compact');
+    sgtitle(sprintf('meshNR: %d',meshInterest(i)))
+
+    for j = 1:numel(nucleiInsideMesh)
+        nucleinr = nucleiInsideMesh(j);
+        tilenumber = tilenumbers(nucleinr);
+        filename= sprintf('Nuclei_BF_NucleiNr%04d_TileNumber%02d.png',nucleinr,tilenumber);
+        dapiImage = imread(fullfile(outputPath,'Phasecorrelation','Microscope_Dapi_BF',filename));
+        median(1:length(dapiImage))
+        stackDapiImage=stackDapiImage + (dapiImage / length(nucleiLocInsideMesh)*2);
+
+
+        nexttile(t)
+        imshow(dapiImage)
+        title(sprintf('Nuclei NR: %d',nucleinr))
+    end
+    averageDapiImage(:,:,i) =stackDapiImage;
+
+    t = tiledlayout(T,'flow');
+    t.Layout.Tile=2;
+    nexttile(t)
+    imshow(averageDapiImage(:,:,i))
+    title('Stacked average nuclei')
+
+
+
+
+
+    nexttile(t)
+    imshow(fixednorm(101:150,101:150))
+    hold on
+    XY = [NucleiLocationOneFeature(:,1) NucleiLocationOneFeature(:,2)];
+    plot(XY(:,1),XY(:,2),'*')
+    x = XY(:,1);
+    y = XY(:,2);
+    a=nucleiNRbyRank_excluded; b = num2str(a); c = cellstr(b);
+    dx = 0.1; dy = 0.1;
+    text(x+dx, y+dy, c, 'Color',[1 1 1],'FontSize',7);
+
+    %plot mesh
+    for i = 1:sizeMesh
+        line([meshStepSize*i , meshStepSize*i] , [0 sizeFeatureInPixels])
+        line([0 sizeFeatureInPixels], [meshStepSize*i , meshStepSize*i])
+    end
+
+    layout=edges(1:end-1);
+    for i = 1:numel(layout)
+        for j = 1:numel(layout)
+            text(2+layout(i),2+layout(j),string((i-1)*10 + j),"HorizontalAlignment","center")
+        end
+    end
+
+end
+%%
+
+
+[row,col] = ind2sub([sizeMesh sizeMesh],meshInterest);
+xmeshcenters = col*meshStepSize -2 + 50;
+ymeshcenters = row*meshStepSize -2 + 50;
+
+
+fig = figure('Position', get(0, 'Screensize'));
+T = tiledlayout(2,2,'TileSpacing','tight','Padding','tight');
+t2 = tiledlayout(T,'flow','TileSpacing','tight','Padding','tight');
+t2.Layout.Tile=3;
+t2.Layout.TileSpan = [1 2];
+
+nexttile(T,2)
+imshow(fixednorm/3); hold on
+p = plot(xmeshcenters,ymeshcenters, '*');
+p = plot(xmeshcenters,ymeshcenters,'o','MarkerFaceColor','red');
+
+for i = 1:size(averageDapiImage,3)
+    nexttile(t2)
+    imshow(averageDapiImage(:,:,i))
+    title(sprintf('frame: %d', i))
+end
+
+for i = 1:size(averageDapiImage,3)
+    x = xmeshcenters(i);
+    y = ymeshcenters(i);
+    currentMesh= meshInterest(i);
+
+    %crops a dapi image from 151x151 to 51 x 51
+    middle = round(251/2);
+    cropxy = 25; % 25 pixels
+    beginCrop = middle - cropxy; endCrop = middle + cropxy;
+    croppedDapi = averageDapiImage(beginCrop:endCrop, beginCrop:endCrop , i);
+
+
+    fixedMeanDapi = fixednorm/3;
+    fixedMeanDapi(y-cropxy:y+cropxy,x-cropxy:x+cropxy) = fixedMeanDapi(y-cropxy:y+cropxy,x-cropxy:x+cropxy) + croppedDapi;
+
+    nexttile(T,1)
+    imshow(fixedMeanDapi);hold on
+%     plot(xmeshcenters(i),ymeshcenters(i), '*','Color','b')
+    title(sprintf('AverageDapi at position: %d', currentMesh))
+
+    nexttile(T,2)
+    p.MarkerIndices = i;
+    frame=getframe(fig);
+    im{i} = frame2im(frame);
+    title(sprintf('Position: %d', currentMesh))
+
+end
+
+
+filename = "meanNucleiSlow.gif"; % Specify the output file name
+for idx = 1:numel(meshInterest)
+    [A,map] = rgb2ind(im{idx},256);
+    if idx == 1
+        imwrite(A,map,filename,"gif","LoopCount",Inf,"DelayTime",2);
+    else
+        imwrite(A,map,filename,"gif","WriteMode","append","DelayTime",1);
+    end
+end
+
+filename = "meanNucleiFast.gif"; % Specify the output file name
+for idx = 1:numel(meshInterest)
+    [A,map] = rgb2ind(im{idx},256);
+    if idx == 1
+        imwrite(A,map,filename,"gif","LoopCount",Inf,"DelayTime",0.5);
+    else
+        imwrite(A,map,filename,"gif","WriteMode","append","DelayTime",0.1);
+    end
+end

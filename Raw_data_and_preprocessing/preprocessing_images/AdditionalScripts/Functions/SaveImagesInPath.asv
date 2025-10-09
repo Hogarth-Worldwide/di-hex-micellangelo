@@ -1,0 +1,13 @@
+function [] = SaveImagesInPath(I,path,fileName,saveasarray=false)
+%SAVEIMAGESINPATH Summary of this function goes here
+%   Detailed explanation goes here
+if not(isfolder(path))
+    mkdir(path)
+end
+
+imwrite(I,fullfile(path,fileName))
+
+
+
+end
+

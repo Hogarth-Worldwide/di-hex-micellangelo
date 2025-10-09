@@ -1,0 +1,96 @@
+%%
+
+TimprovedByRank = open('TimprovedByRank.mat').TimprovedByRank;
+nucleiNRbyRank = open('nucleiNRbyRank.mat').nucleiNRbyRank;
+fixed = imread(fixedImageFilename);
+fixednorm=uint16(65535*mat2gray(fixed));
+fixed1feature = fixednorm( (round(sizeFeatureInPixels)*2 +1) : (round(sizeFeatureInPixels)*3) ,  (round(sizeFeatureInPixels)*2 +1) : (round(sizeFeatureInPixels)*3));
+
+%filter out nucleiNr manually;
+remove = ismember(nucleiNRbyRank,excludedNucleiNR);
+
+TimprovedByRank_excluded = TimprovedByRank;
+TimprovedByRank_excluded(remove,:) = [];
+
+nucleiNRbyRank_excluded = nucleiNRbyRank;
+nucleiNRbyRank_excluded(remove,:) = [];
+
+
+%
+nucleiLocation = round(TimprovedByRank_excluded); % + (nFeaturesMovingImage * sizeFeatureInPixels/2));
+NucleiLocationOneFeature=TimprovedByRank;
+
+
+if plots == 1;
+
+figure('Position', get(0, 'Screensize'));
+tiledlayout('flow')
+nexttile
+
+dx=cosd(angle)*sizeFeatureInPixels;
+dy=sind(angle)*sizeFeatureInPixels;
+beginTx=NucleiLocationOneFeature(:,1) -2*dx+2*dy;
+beginTy=NucleiLocationOneFeature(:,2) -2*dx-2*dy;
+beginTxy=[];
+
+TxyOnFixed = [];
+
+
+for i = 1:round(length(fixednorm)/sizeFeatureInPixels)
+    for j = 1:round(length(fixednorm)/sizeFeatureInPixels)
+        addX =beginTx + dx*(i-1)-dy*(j-1);
+        addY =beginTy + dy*(i-1)+dx*(j-1);
+        TxyOnFixed =[TxyOnFixed; addX addY repmat(i,length(beginTx),1) repmat(j,length(beginTx),1)];
+    end
+end
+
+
+    imshow(fixednorm); hold on
+    sgtitle(sprintf('n = %d',length(nucleiNRbyRank_excluded)))
+
+    plot(TxyOnFixed(:,1),TxyOnFixed(:,2), '*')
+
+
+    dx = cosd(angle)*sizeFeatureInPixels;
+    dy = sind(angle)*sizeFeatureInPixels;
+    lineSpacing = sizeFeatureInPixels; % Whatever you want.
+    [rows, columns, numberOfColorChannels] = size(fixednorm);
+    rows=1: lineSpacing : rows ;
+    cols=1 : lineSpacing : columns;
+    for i=1:numel(rows)
+        line([1-dy *(i-1), 1-dy *(i-1) + 6*dx] , [1+(i-1)*dx, 1+dx*(i-1)+6*dy], 'Color', 'r', 'LineWidth', 1)
+        line([1+(i-1)*dx, 1+dx*(i-1)-6*dy],[1+dy*(i-1), 1+dy *(i-1) + 6*dx],'Color', 'r', 'LineWidth', 1)
+    end
+
+%     subplot(1,2,2)
+%     imshow(fixednorm(1:160,1:160)); hold on
+%     plot(NucleiLocationOneFeature(:,1),NucleiLocationOneFeature(:,2), '*')
+%     xlim([100 155]);ylim([100 150])
+%     %plot number
+%     x = NucleiLocationOneFeature(:,1);
+%     y = NucleiLocationOneFeature(:,2);
+%     a=nucleiNRbyRank_excluded; b = num2str(a); c = cellstr(b);
+%     dx = 0.1; dy = 0.1;
+%     text(x+dx, y+dy, c, 'Color',[1 1 1],'FontSize',7.5);
+
+%     if overwrite == 1
+%         saveas(f,fullfile(outputPath,'Overview', sprintf( 'Locations_n%03d', length(nucleiNRbyRank_excluded))),'png');
+%     end
+%% Histogram
+    nBins = repmat(round(sizeFeatureInPixels/2),1,2);
+    RGB1 = cat(3, fixednorm(101:151,101:151), fixednorm(101:151,101:151), fixednorm(101:151,101:151));
+    
+    figure;
+    hist3(NucleiLocationOneFeature,'Nbins',nBins,'CdataMode','auto')
+    colorbar
+    view(2)
+    hold on; imshow(RGB1)
+
+end
+
+if overwrite == 1
+    save(fullfile(inputPath,'MatlabSavedVariables','TimprovedByRank_excluded'), 'TimprovedByRank_excluded')
+    save(fullfile(inputPath,'MatlabSavedVariables','nucleiNRbyRank_excluded'), 'nucleiNRbyRank_excluded')
+    save(fullfile(inputPath,'MatlabSavedVariables','TxyOnFixed'), 'TxyOnFixed')
+end
+
