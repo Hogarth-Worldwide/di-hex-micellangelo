@@ -1,6 +1,6 @@
 --find-links https://download.pytorch.org/whl/cu124
 numpy==1.26.3
-torch==2.4.1
+torch==2.13.0
 torchvision==0.19.1
 torchaudio==2.4.1
 scipy==1.14.1
